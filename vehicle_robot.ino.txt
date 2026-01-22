@@ -1,0 +1,153 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <DHT.h>
+
+// ---------------- OLED ----------------
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define OLED_ADDR 0x3C
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// ---------------- MOTOR ----------------
+#define IN1 26
+#define IN2 27
+#define IN3 14
+#define IN4 12
+
+// ---------------- ULTRASONIC ----------------
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+
+// ---------------- SENSORS ----------------
+#define LDR_PIN 32
+#define DHTPIN 4
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// ---------------- VARIABLES ----------------
+long duration;
+float distance;
+int ldrValue;
+
+// ---------------- MOTOR FUNCTIONS ----------------
+void forward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void stopMotor() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+void left() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void right() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void backward() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+// ---------------- SETUP ----------------
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  dht.begin();
+  Wire.begin(21, 22);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    Serial.println("OLED failed");
+    while (1);
+  }
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+}
+
+// ---------------- LOOP ----------------
+void loop() {
+
+  // ---------- Ultrasonic ----------
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  distance = duration * 0.034 / 2;
+
+  // ---------- Sensors ----------
+  ldrValue = analogRead(LDR_PIN);
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+
+  // ---------- OLED DISPLAY ----------
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+
+  display.print("Dist: ");
+  display.print(distance);
+  display.println(" cm");
+
+  display.print("Light: ");
+  display.println(ldrValue);
+
+  display.print("Temp: ");
+  display.print(temp);
+  display.println(" C");
+
+  display.print("Hum : ");
+  display.print(hum);
+  display.println(" %");
+
+  display.display();
+
+  // ---------- ROBOT LOGIC ----------
+  if (distance < 20) {          // Obstacle detected
+    stopMotor();
+    delay(200);
+    backward();
+    delay(400);
+    right();
+    delay(500);
+  }
+  else if (ldrValue < 2000) {   // Light detected
+    forward();
+  }
+  else {
+    stopMotor();
+  }
+
+  delay(100);
+}
